@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+
+# Data & models — never commit (risk R6: GDPR / repo hygiene)
+data/
+*.csv
+*.parquet
+models/*.joblib
+models/*.pkl
+
+# Notebooks: strip outputs before commit (nbstripout)
+.ipynb_checkpoints/
+
+# Env & IDE
+.env
+.idea/
+.vscode/
