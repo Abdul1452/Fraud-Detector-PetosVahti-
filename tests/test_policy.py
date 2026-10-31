@@ -14,8 +14,8 @@ def test_version() -> None:
     ("score", "expected"),
     [
         (0.0, Decision.APPROVE),
-        (59.9, Decision.APPROVE),
-        (60.0, Decision.REVIEW),
+        (19.9, Decision.APPROVE),
+        (20.0, Decision.REVIEW),
         (85.0, Decision.REVIEW),
         (85.1, Decision.BLOCK),
         (100.0, Decision.BLOCK),

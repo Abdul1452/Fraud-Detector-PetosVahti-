@@ -1,13 +1,17 @@
 """Decision policy: map a 0-100 risk score to a decision.
 
-Thresholds are provisional; they get tuned with real evaluation data in S2.3
-(threshold-tradeoff curve). The `REVIEW` class exists deliberately: it models
-the GDPR Art. 22 human-in-the-loop requirement (see regulatory-context.md).
+The score is a calibrated fraud probability x 100. Thresholds were tuned in
+S2.3 on the calibration-window threshold curve (see
+docs/05-evaluation/model-evaluation-v1.md): the provisional 60 was lowered to
+20 because at a ~0.4 % base rate a one-in-five fraud probability is already
+worth an analyst's minute, and the review queue stays near one case per
+1 000 transactions. The `REVIEW` class exists deliberately: it models the
+GDPR Art. 22 human-in-the-loop requirement (see regulatory-context.md).
 """
 
 from enum import StrEnum
 
-APPROVE_BELOW: float = 60.0
+APPROVE_BELOW: float = 20.0
 BLOCK_ABOVE: float = 85.0
 
 

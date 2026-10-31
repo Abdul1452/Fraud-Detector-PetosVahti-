@@ -49,8 +49,8 @@ class TrainConfig:
     calib_days: int = 7
     test_days: int = 14
     fraud_incidents_per_1000_per_day: float = 3.5
-    n_estimators: int = 200
-    max_samples: int = 512
+    n_estimators: int = 300
+    max_samples: int = 1024
 
 
 # Small enough for CI and first-run demos (~10 s), still enough fraud to calibrate.
@@ -153,6 +153,9 @@ def train(cfg: TrainConfig = TrainConfig(), log: Callable[[str], None] = print) 
     log(f"replayed {len(records):,} test transactions through the online scorer")
 
     evaluation = evaluate(records, train_w, cfg)
+    # Policy cut-offs are chosen on this curve, never on the test window.
+    calib_risk = model.risk_from_anomaly(calib_anomaly)
+    evaluation["calibration_thresholds"] = threshold_curve(calib_risk, calib_w.y().astype(bool))
     model.summary = {
         "pr_auc": evaluation["headline"]["pr_auc"],
         "recall_flagged": evaluation["headline"]["recall_flagged"],
@@ -173,6 +176,13 @@ def _precision_recall(mask: BoolArray, y: BoolArray) -> dict[str, float]:
         "recall": tp / max(int(y.sum()), 1),
         "alerts_per_1000": 1000 * float(mask.mean()) if mask.size else 0.0,
     }
+
+
+def threshold_curve(risk: FloatArray, y: BoolArray) -> list[dict[str, float]]:
+    return [
+        {"threshold": t, **_precision_recall(risk >= t, y)}
+        for t in (10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 95)
+    ]
 
 
 def _test_matrix(records: Sequence[ReplayRecord]) -> FloatArray:
@@ -203,10 +213,7 @@ def evaluate(records: Sequence[ReplayRecord], train_w: Window, cfg: TrainConfig)
                 "median_risk": float(np.median(risk[mask])),
             }
 
-    thresholds = [
-        {"threshold": t, **_precision_recall(risk >= t, y)}
-        for t in (20, 30, 40, 50, 60, 70, 80, 85, 90, 95)
-    ]
+    thresholds = threshold_curve(risk, y)
 
     # Baseline 1: the kind of static rules a bank starts with.
     x_test = _test_matrix(records)
