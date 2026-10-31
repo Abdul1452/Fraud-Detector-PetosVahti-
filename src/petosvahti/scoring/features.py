@@ -9,6 +9,10 @@ Learning policy: every attempt counts towards velocity, but only transactions
 the caller marks as trusted (`learn=True`, i.e. approved) extend the profile.
 Otherwise a blocked transfer would teach the store that the mule's IBAN is a
 "known payee" and make the fraudster's second attempt look normal.
+
+Beneficiary cooling-off: a payee only counts as known once its first trusted
+payment is `PAYEE_COOLING` old, as banks do with new beneficiaries. Without it,
+an approved first APP-scam transfer would whitelist the mule for the second.
 """
 
 import math
@@ -28,6 +32,8 @@ FEATURE_NAMES: tuple[str, ...] = (
     "tx_count_1h",
     "log_amount_24h",
     "log_secs_since_last",
+    "new_payees_1h",
+    "instant_new_payee_log_amount",
 )
 
 MIN_HISTORY = 5  # learned transactions before the personal amount profile is trusted
@@ -37,18 +43,20 @@ MIN_LOG_STD = 0.5
 HOUR = 3600.0
 DAY = 86_400.0
 MAX_GAP = 30 * DAY
+PAYEE_COOLING = DAY
 
 FeatureVector = tuple[float, ...]
 
 
 @dataclass(slots=True)
 class CustomerProfile:
-    recent: deque[tuple[float, float]] = field(default_factory=deque)  # (epoch s, EUR), 24 h
+    # (epoch s, EUR, was a new payee) for the last 24 h of attempts
+    recent: deque[tuple[float, float, bool]] = field(default_factory=deque)
     last_ts: float | None = None
     n: int = 0
     mean_log: float = 0.0
     m2_log: float = 0.0  # Welford running sum of squares of log-amount
-    payees: set[str] = field(default_factory=set)
+    payees: dict[str, float] = field(default_factory=dict)  # payee -> first trusted payment
     devices: set[str] = field(default_factory=set)
     countries: set[str] = field(default_factory=lambda: {HOME_COUNTRY})
 
@@ -77,12 +85,16 @@ class FeatureStore:
         else:
             amount_z = (log_amount - POPULATION_LOG_MEAN) / POPULATION_LOG_STD
 
+        new_payee = ts - p.payees.get(tx.payee_id, ts) < PAYEE_COOLING
+        instant = tx.channel in INSTANT_CHANNELS
         count_1h = 0
+        new_payees_1h = 0
         sum_24h = 0.0
-        for when, amount in p.recent:
+        for when, amount, was_new in p.recent:
             if when <= ts:
                 if ts - when <= HOUR:
                     count_1h += 1
+                    new_payees_1h += was_new
                 if ts - when <= DAY:
                     sum_24h += amount
 
@@ -92,14 +104,18 @@ class FeatureStore:
         return (
             log_amount,
             min(max(amount_z, -5.0), 10.0),
-            float(tx.payee_id not in p.payees),
+            float(new_payee),
             float(tx.device_id not in p.devices),
             float(tx.country not in p.countries),
             float(hour < 6),
-            float(tx.channel in INSTANT_CHANNELS),
+            float(instant),
             float(min(count_1h, 50)),
             math.log1p(sum_24h),
             math.log1p(gap),
+            float(min(new_payees_1h, 50)),
+            # Interaction the forest cannot build from single-feature splits:
+            # large + irrevocable + unknown recipient is the APP-scam signature.
+            log_amount if new_payee and instant else 0.0,
         )
 
     def update(self, tx: Transaction, *, learn: bool = True) -> None:
@@ -108,7 +124,8 @@ class FeatureStore:
         if p is None:
             p = self._profiles[tx.customer_id] = CustomerProfile()
         ts = tx.timestamp.timestamp()
-        p.recent.append((ts, tx.amount_eur))
+        was_new = ts - p.payees.get(tx.payee_id, ts) < PAYEE_COOLING
+        p.recent.append((ts, tx.amount_eur, was_new))
         newest = max(ts, p.recent[-1][0], p.last_ts or ts)
         while p.recent and newest - p.recent[0][0] > DAY:
             p.recent.popleft()
@@ -119,7 +136,7 @@ class FeatureStore:
             delta = log_amount - p.mean_log
             p.mean_log += delta / p.n
             p.m2_log += delta * (log_amount - p.mean_log)
-            p.payees.add(tx.payee_id)
+            p.payees.setdefault(tx.payee_id, ts)
             p.devices.add(tx.device_id)
             p.countries.add(tx.country)
 

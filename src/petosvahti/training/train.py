@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 from sklearn.ensemble import HistGradientBoostingClassifier, IsolationForest
-from sklearn.linear_model import LogisticRegression
+from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 from petosvahti.domain import HELSINKI, FraudPattern, Transaction
@@ -124,18 +124,22 @@ def train(cfg: TrainConfig = TrainConfig(), log: Callable[[str], None] = print) 
         random_state=cfg.seed,
     ).fit(train_w.x())
 
-    # Platt scaling: anomaly score -> P(fraud), fitted on the calibration window only.
+    # Isotonic calibration: anomaly score -> P(fraud), fitted on the calibration window only.
     calib_anomaly = -forest.score_samples(calib_w.x())
-    platt = LogisticRegression(C=100.0).fit(calib_anomaly.reshape(-1, 1), calib_w.y())
-    slope, intercept = float(platt.coef_[0, 0]), float(platt.intercept_[0])
-    if slope <= 0:
-        raise RuntimeError("calibration slope <= 0: anomaly score does not rank fraud")
+    if not calib_w.y().any():
+        raise RuntimeError("calibration window has no fraud; lengthen it or raise the fraud rate")
+    iso = IsotonicRegression(y_min=0.0, y_max=1.0, out_of_bounds="clip")
+    iso.fit(calib_anomaly, calib_w.y())
+    knots = (
+        np.asarray(iso.X_thresholds_, dtype=np.float64),
+        np.asarray(iso.y_thresholds_, dtype=np.float64),
+    )
 
     trained_at = datetime.now(UTC)
     model = FraudModel(
         forest=forest,
         compiled=CompiledForest.from_sklearn(forest),
-        calibration=(slope, intercept),
+        calibration=knots,
         reason_rates=base_rates(train_w.rows),
         version=f"iforest-{trained_at:%Y%m%d}-s{cfg.seed}",
         trained_at=trained_at.isoformat(timespec="seconds"),

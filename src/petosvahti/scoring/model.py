@@ -2,9 +2,11 @@
 
 The forest is unsupervised [R18][R19]: it learns what normal traffic looks
 like and never sees a label. Labels are used once, on a held-out calibration
-window, to fit a 1-D logistic (Platt) map from anomaly score to fraud
-probability, so that `risk_score = 100 · P(fraud)` and the policy thresholds
-(60 / 85) have a probabilistic meaning.
+window, to fit a monotone (isotonic) map from anomaly score to fraud
+probability, so that `risk_score ≈ 100 · P(fraud)` and the policy thresholds
+have a probabilistic meaning. Isotonic rather than Platt scaling: at a 0.4 %
+base rate the logistic curve was badly under-confident in the tail (see the
+model evaluation report). Monotone, so ranking (PR-AUC) is unchanged.
 """
 
 from collections.abc import Mapping
@@ -31,7 +33,7 @@ _ONLINE_MAX_ROWS = 64  # below this the compiled walk wins; above, scikit-learn'
 class FraudModel:
     forest: IsolationForest
     compiled: CompiledForest
-    calibration: tuple[float, float]  # (slope, intercept) on the anomaly score
+    calibration: tuple[FloatArray, FloatArray]  # isotonic knots: anomaly → P(fraud)
     reason_rates: dict[str, float]
     version: str
     trained_at: str
@@ -45,9 +47,8 @@ class FraudModel:
         return np.asarray(-self.forest.score_samples(x), dtype=np.float64)
 
     def risk_from_anomaly(self, anomaly: FloatArray) -> FloatArray:
-        slope, intercept = self.calibration
-        logits = np.clip(slope * anomaly + intercept, -50.0, 50.0)
-        return np.asarray(100.0 / (1.0 + np.exp(-logits)), dtype=np.float64)
+        knots_x, knots_y = self.calibration
+        return np.asarray(100.0 * np.interp(anomaly, knots_x, knots_y), dtype=np.float64)
 
     def risk(self, x: FloatArray) -> FloatArray:
         return self.risk_from_anomaly(self.anomaly(x))
