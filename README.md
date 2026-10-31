@@ -32,7 +32,7 @@ What to try — the full walkthrough is in [`docs/06-demo/demo-guide.md`](docs/0
 docker compose up --build         # Kafka (KRaft) + producer + scoring API → http://localhost:8000
 ```
 
-The producer replays 35 days of synthetic history to `petosvahti.transactions` (warms customer profiles), then streams live; the API consumes, scores and publishes every decision to `petosvahti.decisions`.
+The producer replays 35 days of synthetic history to `petosvahti.transactions` (warms customer profiles), then streams live; the API consumes, scores and publishes every decision to `petosvahti.decisions`. The dashboard works the same, minus the simulator-only panels (attack injection, "try it"). Run `docker compose down` between demos: topics are not persisted, so that gives a clean stream.
 
 ## Results
 
