@@ -76,7 +76,8 @@ tr.fresh { animation: fresh 1.2s ease-out; }
 tr.watched td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .only-flagged tr.approve { display: none; }
 td.num { text-align: right; }
-.payee { max-width: 210px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: bottom; }
+td.why { white-space: normal; min-width: 150px; }
+.payee { max-width: 170px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: bottom; }
 .cc { font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
 .risk { display: flex; align-items: center; gap: 8px; min-width: 120px; }
 .risk .track { flex: 1; height: 6px; border-radius: 3px; background: var(--bar); overflow: hidden; }
@@ -147,7 +148,7 @@ dialog table td { padding: 4px 0; border: 0; }
   </div>
   <div class="meta">
     <span id="status" class="pill">Connecting…</span>
-    <span>Helsinki time <b id="clock">–</b></span>
+    <span id="clock-label">Simulated Helsinki time</span> <b id="clock">–</b>
     <span>Model <b id="model">–</b></span>
     <span>Policy <b id="policy">–</b></span>
   </div>
@@ -266,7 +267,7 @@ const REASONS = {
   NIGHT_TIME: "Night", HIGH_VELOCITY: "Velocity", RAPID_SUCCESSION: "Rapid repeat", INSTANT_HIGH_VALUE: "Instant, high €",
 };
 const MAX_ROWS = 80;
-let lastSeq = 0, reasonText = {}, scenarios = null, scenarioKey = "app_scam";
+let lastSeq = 0, scenarios = null, scenarioKey = "app_scam";
 const watched = new Map();
 
 function el(tag, props = {}, ...children) {
@@ -308,7 +309,7 @@ function renderRow(e) {
   const t = e.transaction, r = e.result;
   const payee = el("td", {}, el("span", { class: "payee", text: t.payee_name, title: t.payee_id }));
   if (t.country !== "FI") payee.append(el("span", { class: "cc", text: t.country }));
-  const reasons = el("td");
+  const reasons = el("td", { class: "why" });
   if (r.decision !== "approve") for (const x of r.reasons) reasons.append(el("span", { class: "reason", text: REASONS[x.code] || x.code, title: x.description }));
   const tr = el("tr", { class: `${r.decision} fresh`, onclick: () => showDetail(e) },
     el("td", { text: tFmt.format(new Date(t.timestamp)) }),
@@ -380,7 +381,8 @@ async function pollStats() {
     } else if (src.kind === "kafka") {
       status.className = `pill ${src.ready ? "live" : "warm"}`;
       status.textContent = src.ready ? `Live · Kafka ${src.topic}` : "Waiting for Kafka…";
-      setText("#clock", dtFmt.format(new Date()));
+      setText("#clock-label", "Stream time (Helsinki)");
+      setText("#clock", dtFmt.format(new Date(src.sim_time)));
       if (src.replayed) $("#empty").textContent = `Replayed ${int.format(src.replayed)} historical messages; waiting for live traffic…`;
     } else {
       status.className = "pill"; status.textContent = "API only";
@@ -410,8 +412,7 @@ document.querySelectorAll("[data-attack]").forEach((b) => b.addEventListener("cl
 setInterval(() => { for (const [c, t] of watched) if (Date.now() - t > 120000) watched.delete(c); }, 10000);
 $("#rate").addEventListener("input", (e) => setText("#rate-val", `${e.target.value} tx/s`));
 $("#rate").addEventListener("change", (e) => post("/api/simulator/control", { rate: Number(e.target.value) }).catch(() => {}));
-$("#pause").addEventListener("click", () => post("/api/simulator/control", { paused: $("#pause").dataset.paused !== "true" }).then(pollStatsOnce).catch(() => {}));
-function pollStatsOnce() { /* next scheduled poll picks up the change */ }
+$("#pause").addEventListener("click", () => post("/api/simulator/control", { paused: $("#pause").dataset.paused !== "true" }).catch(() => {}));
 
 // ---- try it yourself ----------------------------------------------------
 async function loadScenarios(customerId) {
@@ -458,7 +459,6 @@ $("#send").addEventListener("click", async () => {
 api("/api/model").then((m) => {
   setText("#model", m.version);
   setText("#policy", `review ≥ ${m.thresholds.review_from} · block > ${m.thresholds.block_above}`);
-  reasonText = m.reason_codes;
 }).catch(() => {});
 api("/api/stats").then((s) => { if (s.source.rate) { $("#rate").value = s.source.rate; setText("#rate-val", `${s.source.rate} tx/s`); } }).catch(() => {});
 pollEvents(); pollStats(); loadScenarios();

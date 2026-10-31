@@ -204,5 +204,6 @@ class KafkaSource:
             "ready": self._status.connected,
             "bootstrap": self._settings.kafka_bootstrap,
             "topic": self._settings.kafka_transactions_topic,
+            "sim_time": self.clock().isoformat(timespec="seconds"),
             **asdict(self._status),
         }

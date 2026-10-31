@@ -62,8 +62,9 @@ def decode(value: bytes | None, headers: Headers | None) -> tuple[Transaction, s
 
 def ensure_topics(settings: Settings, partitions: int = 3) -> None:
     """Create the topics if missing, so a consumer never waits on a metadata refresh."""
-    from confluent_kafka import KafkaError, KafkaException, NewTopic
+    from confluent_kafka import KafkaError, KafkaException
     from confluent_kafka.admin import AdminClient
+    from confluent_kafka.cimpl import NewTopic
 
     admin = AdminClient({"bootstrap.servers": settings.kafka_bootstrap})
     existing = admin.list_topics(timeout=15).topics

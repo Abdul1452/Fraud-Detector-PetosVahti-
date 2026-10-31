@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+venv
+data
+models
+docs
+notebooks
+tests
+petosvahti-additions
+**/__pycache__
+.mypy_cache
+.ruff_cache
+.pytest_cache
+.coverage
+.env
