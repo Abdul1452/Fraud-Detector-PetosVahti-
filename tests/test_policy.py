@@ -7,7 +7,7 @@ from petosvahti.scoring import Decision, decide
 
 
 def test_version() -> None:
-    assert __version__ == "0.1.0"
+    assert __version__ == "1.0.0"
 
 
 @pytest.mark.parametrize(

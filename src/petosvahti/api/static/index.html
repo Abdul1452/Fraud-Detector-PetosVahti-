@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Petosvahti · Live</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7z' fill='%231f5fbf'/%3E%3Cpath d='m10 16 4 4 8-8' stroke='white' stroke-width='3' fill='none'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f4f6f9; --panel: #ffffff; --ink: #141922; --muted: #5b6573; --line: #e2e6ec;
+  --accent: #1f5fbf; --accent-ink: #ffffff; --soft: #eef3fb;
+  --ok: #17784a; --ok-bg: #e5f4ec; --warn: #9a5b00; --warn-bg: #fdf1dc; --bad: #c0262d; --bad-bg: #fbe7e8;
+  --bar: #d9dee6; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1015; --panel: #151a21; --ink: #e8ebef; --muted: #98a2ae; --line: #252c36;
+    --accent: #6ea8ff; --accent-ink: #0d1015; --soft: #17212f;
+    --ok: #46c486; --ok-bg: #12291e; --warn: #f2a93b; --warn-bg: #2d2210; --bad: #ff6d72; --bad-bg: #331618;
+    --bar: #2a313c; --shadow: none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1015; --panel: #151a21; --ink: #e8ebef; --muted: #98a2ae; --line: #252c36;
+  --accent: #6ea8ff; --accent-ink: #0d1015; --soft: #17212f;
+  --ok: #46c486; --ok-bg: #12291e; --warn: #f2a93b; --warn-bg: #2d2210; --bad: #ff6d72; --bad-bg: #331618;
+  --bar: #2a313c; --shadow: none; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+header {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px 24px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.brand svg { width: 28px; height: 28px; }
+.brand h1 { font-size: 18px; margin: 0; letter-spacing: -.01em; }
+.brand p { margin: 0; color: var(--muted); font-size: 12.5px; }
+.meta { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 12.5px; }
+.meta b { color: var(--ink); font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  background: var(--soft); color: var(--ink); font-weight: 600; font-size: 12px; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.live::before { background: var(--ok); animation: pulse 1.6s infinite; }
+.pill.warm::before { background: var(--warn); }
+@keyframes pulse { 50% { opacity: .35; } }
+main { padding: 20px 24px 32px; max-width: 1480px; margin: 0 auto; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow); }
+.kpi .label { color: var(--muted); font-size: 12px; }
+.kpi .value { font-size: 24px; font-weight: 650; letter-spacing: -.02em; margin-top: 2px; }
+.kpi .sub { color: var(--muted); font-size: 12px; }
+.kpi.ok .value { color: var(--ok); } .kpi.warn .value { color: var(--warn); } .kpi.bad .value { color: var(--bad); }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 18px; align-items: start; }
+@media (max-width: 1100px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); }
+.card + .card { margin-top: 18px; }
+.card h2 { font-size: 14px; margin: 0; }
+.card .head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.card .head .hint { color: var(--muted); font-size: 12px; margin-left: auto; }
+.card .body { padding: 14px 16px; }
+.feed-wrap { overflow-x: auto; max-height: calc(100vh - 250px); min-height: 420px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { position: sticky; top: 0; background: var(--panel); text-align: left; font-weight: 600; color: var(--muted);
+  font-size: 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; z-index: 1; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: middle; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--soft); }
+tr.fresh { animation: fresh 1.2s ease-out; }
+@keyframes fresh { from { background: var(--soft); } }
+tr.watched td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.only-flagged tr.approve { display: none; }
+td.num { text-align: right; }
+.payee { max-width: 210px; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: bottom; }
+.cc { font-size: 11px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+.risk { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.risk .track { flex: 1; height: 6px; border-radius: 3px; background: var(--bar); overflow: hidden; }
+.risk .fill { height: 100%; border-radius: 3px; background: var(--ok); }
+.risk .fill.review { background: var(--warn); } .risk .fill.block { background: var(--bad); }
+.risk span { width: 34px; text-align: right; font-weight: 600; }
+.chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 650; }
+.chip.approve { background: var(--ok-bg); color: var(--ok); }
+.chip.review { background: var(--warn-bg); color: var(--warn); }
+.chip.block { background: var(--bad-bg); color: var(--bad); }
+.reason { display: inline-block; font-size: 11.5px; padding: 1px 6px; margin-right: 4px; border-radius: 4px;
+  background: var(--soft); color: var(--ink); }
+.truth { font-size: 12px; color: var(--muted); }
+.truth.fraud { color: var(--bad); font-weight: 650; }
+.tabs { display: inline-flex; background: var(--soft); border-radius: 8px; padding: 2px; }
+.tabs button { border: 0; background: transparent; color: var(--muted); padding: 4px 10px; border-radius: 6px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--panel); color: var(--ink); font-weight: 600; box-shadow: var(--shadow); }
+button.btn { font: inherit; font-weight: 600; border-radius: 8px; padding: 8px 12px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+button.btn:hover { border-color: var(--accent); }
+button.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.btn:disabled { opacity: .5; cursor: not-allowed; }
+.attacks { display: grid; gap: 8px; }
+.attacks button { text-align: left; display: grid; gap: 2px; }
+.attacks button small { font-weight: 400; color: var(--muted); font-size: 12px; }
+.row { display: flex; align-items: center; gap: 10px; }
+.row + .row { margin-top: 10px; }
+.row label { color: var(--muted); font-size: 12.5px; min-width: 64px; }
+input[type="range"] { flex: 1; accent-color: var(--accent); }
+input[type="number"] { font: inherit; width: 120px; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.scenario-desc { color: var(--muted); font-size: 12.5px; margin: 10px 0; min-height: 36px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12.5px; margin: 8px 0 12px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result { margin-top: 14px; padding: 12px; border-radius: 8px; background: var(--soft); display: none; }
+.result.show { display: block; }
+.result .score { font-size: 34px; font-weight: 700; letter-spacing: -.02em; }
+.result ul { margin: 8px 0 0; padding-left: 18px; }
+.result .lat { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.patterns td, .patterns th { padding: 6px 0; position: static; }
+.patterns td.num, .patterns th.num { text-align: right; }
+.link { color: var(--accent); background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-decoration: underline; }
+footer { color: var(--muted); font-size: 12px; text-align: center; padding: 0 24px 28px; }
+footer a { color: var(--accent); }
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--panel);
+  padding: 10px 16px; border-radius: 8px; font-weight: 500; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: calc(100% - 32px); }
+#toast.show { opacity: 1; }
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--ink); max-width: 520px; width: calc(100% - 32px); padding: 0; }
+dialog::backdrop { background: rgba(0,0,0,.35); }
+dialog .head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+dialog .body { padding: 14px 16px; }
+dialog table td { padding: 4px 0; border: 0; }
+.empty { color: var(--muted); text-align: center; padding: 48px 12px; }
+.hidden { display: none !important; }
+@media (max-width: 640px) {
+  header, main { padding-left: 16px; padding-right: 16px; }
+  .feed-wrap { max-height: 70vh; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 4 7v8c0 7.5 5.1 13.4 12 15 6.9-1.6 12-7.5 12-15V7z" fill="var(--accent)"/><path d="m10 16 4 4 8-8" stroke="var(--panel)" stroke-width="3" fill="none"/></svg>
+    <div>
+      <h1>Petosvahti</h1>
+      <p>Real-time fraud scoring · Finnish payment rails · synthetic data</p>
+    </div>
+  </div>
+  <div class="meta">
+    <span id="status" class="pill">Connecting…</span>
+    <span>Helsinki time <b id="clock">–</b></span>
+    <span>Model <b id="model">–</b></span>
+    <span>Policy <b id="policy">–</b></span>
+  </div>
+</header>
+
+<main>
+  <section class="kpis" aria-label="Live metrics">
+    <div class="kpi"><div class="label">Scored</div><div class="value" id="k-scored">0</div><div class="sub" id="k-tput">– tx/s</div></div>
+    <div class="kpi ok"><div class="label">Approved</div><div class="value" id="k-approve">0</div><div class="sub" id="k-approve-p">–</div></div>
+    <div class="kpi warn"><div class="label">Sent to review</div><div class="value" id="k-review">0</div><div class="sub" id="k-review-p">–</div></div>
+    <div class="kpi bad"><div class="label">Blocked</div><div class="value" id="k-block">0</div><div class="sub" id="k-block-p">–</div></div>
+    <div class="kpi"><div class="label">Fraud caught</div><div class="value" id="k-caught">–</div><div class="sub" id="k-caught-sub">synthetic ground truth</div></div>
+    <div class="kpi"><div class="label">False alarms</div><div class="value" id="k-fp">–</div><div class="sub" id="k-fp-sub">legit flagged per 1 000</div></div>
+    <div class="kpi"><div class="label">Scoring latency p99</div><div class="value" id="k-p99">–</div><div class="sub" id="k-p50">target &lt; 100 ms</div></div>
+  </section>
+
+  <div class="grid">
+    <section class="card" aria-label="Live decisions">
+      <div class="head">
+        <h2>Live decisions</h2>
+        <div class="tabs" role="group" aria-label="Filter">
+          <button type="button" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" data-filter="flagged" aria-pressed="false">Flagged only</button>
+        </div>
+        <span class="hint">Click a row for the features behind the score</span>
+      </div>
+      <div class="feed-wrap" id="feed-wrap">
+        <table>
+          <thead><tr>
+            <th>Time</th><th>Customer</th><th>Rail</th><th>Payee</th><th class="num">Amount</th>
+            <th>Risk</th><th>Decision</th><th>Why</th><th>Truth</th>
+          </tr></thead>
+          <tbody id="feed"></tbody>
+        </table>
+        <div class="empty" id="empty">Warming up customer profiles from simulated history…</div>
+      </div>
+    </section>
+
+    <aside>
+      <section class="card sim-only">
+        <div class="head"><h2>Launch an attack</h2><span class="hint">injected into the live stream</span></div>
+        <div class="body attacks">
+          <button class="btn" type="button" data-attack="app_scam">"Safe account" APP scam
+            <small>Victim sends €1–9k by Siirto/instant to a mule, from their own phone</small></button>
+          <button class="btn" type="button" data-attack="account_takeover">Account takeover
+            <small>Stolen login, unknown device, often abroad, drains to a new IBAN</small></button>
+          <button class="btn" type="button" data-attack="card_testing">Card testing
+            <small>Script fires 5–14 tiny card charges at random web shops</small></button>
+        </div>
+      </section>
+
+      <section class="card sim-only">
+        <div class="head"><h2>Try a payment yourself</h2><button class="link" type="button" id="another">another customer</button></div>
+        <div class="body">
+          <div class="tabs" role="group" aria-label="Scenario" id="scenario-tabs"></div>
+          <p class="scenario-desc" id="scenario-desc"></p>
+          <dl class="kv" id="scenario-kv"></dl>
+          <div class="row">
+            <label for="amount">Amount €</label>
+            <input type="number" id="amount" min="0.5" step="0.01">
+            <button class="btn primary" type="button" id="send">Score it</button>
+          </div>
+          <div class="result" id="result" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section class="card sim-only">
+        <div class="head"><h2>Stream</h2><span class="hint" id="sim-info"></span></div>
+        <div class="body">
+          <div class="row">
+            <label for="rate">Speed</label>
+            <input type="range" id="rate" min="1" max="25" step="1" value="4">
+            <span id="rate-val" style="width:54px;text-align:right">4 tx/s</span>
+          </div>
+          <div class="row"><button class="btn" type="button" id="pause">Pause stream</button></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="head"><h2>Detection by pattern</h2><span class="hint">this session</span></div>
+        <div class="body">
+          <table class="patterns">
+            <thead><tr><th>Pattern</th><th class="num">Fraud tx</th><th class="num">Flagged</th></tr></thead>
+            <tbody id="patterns"><tr><td colspan="3" class="truth">No fraud seen yet</td></tr></tbody>
+          </table>
+          <p class="truth" id="fraud-eur" style="margin:10px 0 0"></p>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<footer>
+  Synthetic data only — no real customers. ·
+  <a href="/docs">API docs</a> · <a href="/metrics">Prometheus metrics</a> · <a href="/health">Health</a>
+</footer>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="detail">
+  <div class="head"><h2 id="d-title">Transaction</h2><button class="btn" type="button" id="d-close">Close</button></div>
+  <div class="body" id="d-body"></div>
+</dialog>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const eur = new Intl.NumberFormat("fi-FI", { style: "currency", currency: "EUR" });
+const int = new Intl.NumberFormat("fi-FI");
+const tFmt = new Intl.DateTimeFormat("fi-FI", { timeZone: "Europe/Helsinki", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const dtFmt = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Helsinki", weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const RAILS = { card: "Card", online_bank: "Online bank", sepa_instant: "SEPA Instant", siirto: "Siirto", mobilepay: "MobilePay" };
+const PATTERNS = { app_scam: "APP scam", account_takeover: "Account takeover", card_testing: "Card testing" };
+const REASONS = {
+  AMOUNT_UNUSUAL: "Unusual amount", NEW_PAYEE: "New payee", NEW_DEVICE: "New device", NEW_COUNTRY: "New country",
+  NIGHT_TIME: "Night", HIGH_VELOCITY: "Velocity", RAPID_SUCCESSION: "Rapid repeat", INSTANT_HIGH_VALUE: "Instant, high €",
+};
+const MAX_ROWS = 80;
+let lastSeq = 0, reasonText = {}, scenarios = null, scenarioKey = "app_scam";
+const watched = new Map();
+
+function el(tag, props = {}, ...children) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") n.className = v;
+    else if (k === "text") n.textContent = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v);
+  }
+  for (const c of children) if (c != null) n.append(c);
+  return n;
+}
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) { const e = new Error(await r.text()); e.status = r.status; throw e; }
+  return r.json();
+}
+const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("show"), 4000);
+}
+const pct = (a, b) => (b ? `${((100 * a) / b).toFixed(1)} %` : "–");
+
+// ---- live feed ----------------------------------------------------------
+function riskCell(r) {
+  const cls = r.decision === "approve" ? "" : r.decision;
+  return el("div", { class: "risk" },
+    el("div", { class: "track" }, el("div", { class: `fill ${cls}`, style: `width:${Math.max(r.risk_score, 1.5)}%` })),
+    el("span", { text: r.risk_score.toFixed(0) }));
+}
+function truthCell(e) {
+  if (e.source === "api") return el("span", { class: "truth", text: "manual" });
+  if (!e.label || e.label === "legit") return el("span", { class: "truth", text: "legit" });
+  return el("span", { class: "truth fraud", text: PATTERNS[e.label] || e.label });
+}
+function renderRow(e) {
+  const t = e.transaction, r = e.result;
+  const payee = el("td", {}, el("span", { class: "payee", text: t.payee_name, title: t.payee_id }));
+  if (t.country !== "FI") payee.append(el("span", { class: "cc", text: t.country }));
+  const reasons = el("td");
+  if (r.decision !== "approve") for (const x of r.reasons) reasons.append(el("span", { class: "reason", text: REASONS[x.code] || x.code, title: x.description }));
+  const tr = el("tr", { class: `${r.decision} fresh`, onclick: () => showDetail(e) },
+    el("td", { text: tFmt.format(new Date(t.timestamp)) }),
+    el("td", { text: t.customer_id }),
+    el("td", { text: RAILS[t.channel] || t.channel }),
+    payee,
+    el("td", { class: "num", text: eur.format(t.amount_eur) }),
+    el("td", {}, riskCell(r)),
+    el("td", {}, el("span", { class: `chip ${r.decision}`, text: r.decision })),
+    reasons,
+    el("td", {}, truthCell(e)));
+  if (watched.has(t.customer_id)) tr.classList.add("watched");
+  return tr;
+}
+async function pollEvents() {
+  try {
+    const events = await api(`/api/events?since=${lastSeq}&limit=100`);
+    const body = $("#feed");
+    for (const e of events) { lastSeq = e.seq; body.prepend(renderRow(e)); }
+    while (body.children.length > MAX_ROWS) body.lastChild.remove();
+    if (body.children.length) $("#empty").classList.add("hidden");
+  } catch (_) { /* server restarting: keep polling */ }
+  setTimeout(pollEvents, 1000);
+}
+function showDetail(e) {
+  const t = e.transaction, r = e.result;
+  $("#d-title").textContent = `${t.customer_id} → ${t.payee_name}`;
+  const body = $("#d-body"); body.replaceChildren();
+  body.append(el("p", {},
+    el("span", { class: `chip ${r.decision}`, text: `${r.decision} · risk ${r.risk_score.toFixed(1)}` }), " ",
+    el("span", { class: "truth", text: `${eur.format(t.amount_eur)} via ${RAILS[t.channel]} · ${dtFmt.format(new Date(t.timestamp))} · ${r.latency_ms.toFixed(2)} ms` })));
+  if (r.reasons.length) body.append(el("ul", {}, ...r.reasons.map((x) => el("li", { text: x.description }))));
+  const rows = Object.entries(r.features).map(([k, v]) => el("tr", {}, el("td", { class: "truth", text: k }), el("td", { class: "num", text: String(v) })));
+  body.append(el("h2", { text: "Model features", style: "font-size:13px;margin:14px 0 4px" }), el("table", {}, el("tbody", {}, ...rows)));
+  body.append(el("p", { class: "truth", text: `Transaction ${t.transaction_id} · device ${t.device_id} · model ${r.model_version}` }));
+  $("#detail").showModal();
+}
+$("#d-close").onclick = () => $("#detail").close();
+document.querySelectorAll("[data-filter]").forEach((b) => b.addEventListener("click", () => {
+  document.querySelectorAll("[data-filter]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  $("#feed-wrap").classList.toggle("only-flagged", b.dataset.filter === "flagged");
+}));
+
+// ---- stats --------------------------------------------------------------
+function setText(id, v) { $(id).textContent = v; }
+async function pollStats() {
+  try {
+    const s = await api("/api/stats");
+    const d = s.decisions, g = s.ground_truth, src = s.source;
+    setText("#k-scored", int.format(s.scored));
+    setText("#k-tput", `${s.throughput_per_s.toFixed(1)} tx/s`);
+    setText("#k-approve", int.format(d.approve)); setText("#k-approve-p", pct(d.approve, s.scored));
+    setText("#k-review", int.format(d.review)); setText("#k-review-p", pct(d.review, s.scored));
+    setText("#k-block", int.format(d.block)); setText("#k-block-p", pct(d.block, s.scored));
+    setText("#k-caught", g.fraud ? pct(g.fraud_flagged, g.fraud) : "–");
+    setText("#k-caught-sub", g.fraud ? `${g.fraud_flagged} of ${g.fraud} fraud tx flagged` : "no fraud seen yet");
+    setText("#k-fp", g.legit ? (1000 * g.legit_flagged / g.legit).toFixed(1) : "–");
+    setText("#k-fp-sub", `${g.legit_flagged} legit flagged, ${g.legit_blocked} blocked`);
+    setText("#k-p99", `${s.latency_ms.p99.toFixed(2)} ms`);
+    setText("#k-p50", `p50 ${s.latency_ms.p50.toFixed(2)} ms · target < 100 ms`);
+    const status = $("#status");
+    if (src.kind === "simulator") {
+      status.className = `pill ${src.ready ? (src.paused ? "" : "live") : "warm"}`;
+      status.textContent = !src.ready ? `Warming up · ${int.format(src.warmed)} tx` : src.paused ? "Paused" : "Live · simulator";
+      setText("#clock", dtFmt.format(new Date(src.sim_time)));
+      setText("#sim-info", `${src.customers} customers · ${int.format(s.customers_profiled)} profiled`);
+      $("#pause").textContent = src.paused ? "Resume stream" : "Pause stream";
+      $("#pause").dataset.paused = String(src.paused);
+    } else if (src.kind === "kafka") {
+      status.className = `pill ${src.ready ? "live" : "warm"}`;
+      status.textContent = src.ready ? `Live · Kafka ${src.topic}` : "Waiting for Kafka…";
+      setText("#clock", dtFmt.format(new Date()));
+      if (src.replayed) $("#empty").textContent = `Replayed ${int.format(src.replayed)} historical messages; waiting for live traffic…`;
+    } else {
+      status.className = "pill"; status.textContent = "API only";
+      setText("#clock", dtFmt.format(new Date()));
+    }
+    const pb = $("#patterns"); pb.replaceChildren();
+    const entries = Object.entries(s.patterns);
+    if (!entries.length) pb.append(el("tr", {}, el("td", { colspan: "3", class: "truth", text: "No fraud seen yet" })));
+    for (const [p, v] of entries) pb.append(el("tr", {}, el("td", { text: PATTERNS[p] || p }), el("td", { class: "num", text: v.seen }), el("td", { class: "num", text: pct(v.flagged, v.seen) })));
+    setText("#fraud-eur", g.fraud_eur ? `${eur.format(g.fraud_eur_blocked)} blocked and ${eur.format(g.fraud_eur_held)} held for review, of ${eur.format(g.fraud_eur)} attempted fraud.` : "");
+  } catch (_) {
+    $("#status").className = "pill"; $("#status").textContent = "Disconnected";
+  }
+  setTimeout(pollStats, 1500);
+}
+
+// ---- controls -----------------------------------------------------------
+document.querySelectorAll("[data-attack]").forEach((b) => b.addEventListener("click", async () => {
+  b.disabled = true;
+  try {
+    const r = await post("/api/simulator/inject", { pattern: b.dataset.attack });
+    watched.set(r.customer_id, Date.now());
+    toast(`${PATTERNS[r.pattern]} launched against ${r.customer_id} — watch for it in the feed.`);
+  } catch (e) { toast(e.status === 409 ? "Still warming up — try again in a moment." : "Could not launch the attack."); }
+  setTimeout(() => (b.disabled = false), 1500);
+}));
+setInterval(() => { for (const [c, t] of watched) if (Date.now() - t > 120000) watched.delete(c); }, 10000);
+$("#rate").addEventListener("input", (e) => setText("#rate-val", `${e.target.value} tx/s`));
+$("#rate").addEventListener("change", (e) => post("/api/simulator/control", { rate: Number(e.target.value) }).catch(() => {}));
+$("#pause").addEventListener("click", () => post("/api/simulator/control", { paused: $("#pause").dataset.paused !== "true" }).then(pollStatsOnce).catch(() => {}));
+function pollStatsOnce() { /* next scheduled poll picks up the change */ }
+
+// ---- try it yourself ----------------------------------------------------
+async function loadScenarios(customerId) {
+  try {
+    scenarios = await api(`/api/scenarios${customerId ? `?customer_id=${encodeURIComponent(customerId)}` : ""}`);
+  } catch (e) {
+    if (e.status === 409) document.querySelectorAll(".sim-only").forEach((n) => n.classList.add("hidden"));
+    return;
+  }
+  const tabs = $("#scenario-tabs"); tabs.replaceChildren();
+  for (const [key, sc] of Object.entries(scenarios.scenarios)) {
+    tabs.append(el("button", { type: "button", "aria-pressed": String(key === scenarioKey), onclick: () => { scenarioKey = key; renderScenario(); } , text: sc.label }));
+  }
+  renderScenario();
+}
+function renderScenario() {
+  document.querySelectorAll("#scenario-tabs button").forEach((b, i) => b.setAttribute("aria-pressed", String(Object.keys(scenarios.scenarios)[i] === scenarioKey)));
+  const sc = scenarios.scenarios[scenarioKey], t = sc.transaction;
+  setText("#scenario-desc", sc.description);
+  const kv = $("#scenario-kv"); kv.replaceChildren();
+  const pairs = [["Customer", `${t.customer_id} (${scenarios.city})`], ["Payee", t.payee_name], ["Rail", RAILS[t.channel]], ["Device", t.device_id], ["Country", t.country]];
+  for (const [k, v] of pairs) kv.append(el("dt", { text: k }), el("dd", { text: v, title: v }));
+  $("#amount").value = t.amount_eur;
+  $("#result").classList.remove("show");
+}
+$("#another").addEventListener("click", () => loadScenarios());
+$("#send").addEventListener("click", async () => {
+  const t = { ...scenarios.scenarios[scenarioKey].transaction };
+  delete t.transaction_id; delete t.timestamp;  // server assigns id and uses the simulated clock
+  t.amount_eur = Number($("#amount").value) || t.amount_eur;
+  const box = $("#result");
+  try {
+    const r = await post("/score", t);
+    const color = r.decision === "approve" ? "var(--ok)" : r.decision === "review" ? "var(--warn)" : "var(--bad)";
+    box.replaceChildren(
+      el("div", { class: "row" }, el("span", { class: "score", style: `color:${color}`, text: r.risk_score.toFixed(1) }), el("span", { class: `chip ${r.decision}`, text: r.decision })),
+      r.reasons.length ? el("ul", {}, ...r.reasons.map((x) => el("li", { text: x.description }))) : el("p", { class: "truth", text: "Nothing unusual about this payment for this customer." }),
+      el("div", { class: "lat", text: `Scored in ${r.latency_ms.toFixed(2)} ms by ${r.model_version}. It also appears in the live feed as "manual".` }));
+    box.classList.add("show");
+  } catch (e) { toast("Scoring failed: " + e.message.slice(0, 120)); }
+});
+
+// ---- boot ---------------------------------------------------------------
+api("/api/model").then((m) => {
+  setText("#model", m.version);
+  setText("#policy", `review ≥ ${m.thresholds.review_from} · block > ${m.thresholds.block_above}`);
+  reasonText = m.reason_codes;
+}).catch(() => {});
+api("/api/stats").then((s) => { if (s.source.rate) { $("#rate").value = s.source.rate; setText("#rate-val", `${s.source.rate} tx/s`); } }).catch(() => {});
+pollEvents(); pollStats(); loadScenarios();
+</script>
+</body>
+</html>

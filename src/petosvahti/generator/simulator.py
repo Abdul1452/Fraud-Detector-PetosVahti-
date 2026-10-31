@@ -149,7 +149,9 @@ class Simulator:
 
     # -- event loop -------------------------------------------------------
 
-    def _push(self, at: float, kind: str, customer: int = -1, ready: LabelledTransaction | None = None) -> None:  # fmt: skip
+    def _push(
+        self, at: float, kind: str, customer: int = -1, ready: LabelledTransaction | None = None
+    ) -> None:
         heapq.heappush(self._heap, _Event(at, next(self._seq), kind, customer, ready))
 
     def _next_locked(self) -> LabelledTransaction:
@@ -211,7 +213,9 @@ class Simulator:
         return Customer(
             customer_id=f"C{i:05d}",
             city=city,
-            devices=[f"dev-{rng.getrandbits(40):010x}" for _ in range(1 if rng.random() < 0.6 else 2)],  # fmt: skip
+            devices=[
+                f"dev-{rng.getrandbits(40):010x}" for _ in range(1 if rng.random() < 0.6 else 2)
+            ],
             spend_factor=rng.lognormvariate(0.0, 0.35),
             tx_per_day=rng.uniform(1.5, 6.0),
             merchants=merchants,
@@ -256,7 +260,13 @@ class Simulator:
         return c.devices[0]
 
     def _tx(
-        self, c: Customer, at: float, payee: Payee, amount: float, device: str, channel: Channel | None = None  # fmt: skip
+        self,
+        c: Customer,
+        at: float,
+        payee: Payee,
+        amount: float,
+        device: str,
+        channel: Channel | None = None,
     ) -> Transaction:
         return Transaction(
             transaction_id=f"{self._rng.getrandbits(64):016x}",
@@ -314,7 +324,9 @@ class Simulator:
 
     def _shift_to_window(self, at: float, start_hour: int, end_hour: int) -> float:
         """Move `at` forward to a random moment in the next [start_hour, end_hour) window."""
-        day = datetime.fromtimestamp(at, HELSINKI).replace(hour=0, minute=0, second=0, microsecond=0)  # fmt: skip
+        day = datetime.fromtimestamp(at, HELSINKI).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
         for offset in range(3):
             base = day + timedelta(days=offset)
             lo = base.replace(hour=start_hour).timestamp()
@@ -323,7 +335,9 @@ class Simulator:
                 return self._rng.uniform(max(lo, at), hi)
         return at
 
-    def _push_incident(self, pattern: FraudPattern, idx: int, at: float, shift_time: bool = True) -> None:  # fmt: skip
+    def _push_incident(
+        self, pattern: FraudPattern, idx: int, at: float, shift_time: bool = True
+    ) -> None:
         rng = self._rng
         c = self.customers[idx]
         txs: list[tuple[float, Transaction]] = []
@@ -342,7 +356,9 @@ class Simulator:
             if shift_time and rng.random() < 0.5:
                 at = self._shift_to_window(at, 0, 5)
             country = rng.choice(fi.FRAUD_COUNTRIES) if rng.random() < 0.6 else HOME_COUNTRY
-            mule = Payee(fi.synthetic_iban(rng), fi.person_name(rng), Channel.SEPA_INSTANT, 1500.0, country)  # fmt: skip
+            mule = Payee(
+                fi.synthetic_iban(rng), fi.person_name(rng), Channel.SEPA_INSTANT, 1500.0, country
+            )
             device = f"dev-{rng.getrandbits(40):010x}"
             channel = Channel.SEPA_INSTANT if rng.random() < 0.6 else Channel.ONLINE_BANK
             for _ in range(rng.randint(1, 4)):

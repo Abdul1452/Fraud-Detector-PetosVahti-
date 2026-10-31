@@ -15,7 +15,7 @@ Decisions are published to `petosvahti.decisions` as `ScoreResult` JSON.
 
 import logging
 import threading
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -33,23 +33,52 @@ REPLAY_HEADER = "replay"
 LABEL_HEADER = "synthetic-label"
 LEGIT = "legit"
 
-Headers = Sequence[tuple[str, bytes | None]]
+Headers = Sequence[tuple[str, str | bytes | None]] | Mapping[str, str | bytes | None]
 
 
-def encode(lt: LabelledTransaction, *, replay: bool) -> tuple[bytes, bytes, list[tuple[str, bytes]]]:  # fmt: skip
+def encode(
+    lt: LabelledTransaction, *, replay: bool
+) -> tuple[bytes, bytes, list[tuple[str, str | bytes | None]]]:
     tx = lt.transaction
     label = lt.fraud_pattern.value if lt.fraud_pattern else LEGIT
-    headers = [(REPLAY_HEADER, b"1" if replay else b"0"), (LABEL_HEADER, label.encode())]
+    headers: list[tuple[str, str | bytes | None]] = [
+        (REPLAY_HEADER, b"1" if replay else b"0"),
+        (LABEL_HEADER, label.encode()),
+    ]
     return tx.customer_id.encode(), tx.model_dump_json().encode(), headers
 
 
-def decode(value: bytes, headers: Headers | None) -> tuple[Transaction, str | None, bool]:
-    meta = {k: (v or b"").decode() for k, v in headers or ()}
+def decode(value: bytes | None, headers: Headers | None) -> tuple[Transaction, str | None, bool]:
+    if value is None:
+        raise ValueError("message has no value")
+    pairs = headers.items() if isinstance(headers, Mapping) else (headers or ())
+    meta = {k: v.decode() if isinstance(v, bytes) else (v or "") for k, v in pairs}
     return (
         Transaction.model_validate_json(value),
         meta.get(LABEL_HEADER),
         meta.get(REPLAY_HEADER) == "1",
     )
+
+
+def ensure_topics(settings: Settings, partitions: int = 3) -> None:
+    """Create the topics if missing, so a consumer never waits on a metadata refresh."""
+    from confluent_kafka import KafkaError, KafkaException, NewTopic
+    from confluent_kafka.admin import AdminClient
+
+    admin = AdminClient({"bootstrap.servers": settings.kafka_bootstrap})
+    existing = admin.list_topics(timeout=15).topics
+    wanted = (settings.kafka_transactions_topic, settings.kafka_decisions_topic)
+    new = [
+        NewTopic(t, num_partitions=partitions, replication_factor=1)
+        for t in wanted
+        if t not in existing
+    ]
+    for future in admin.create_topics(new).values() if new else ():
+        try:
+            future.result()
+        except KafkaException as exc:
+            if exc.args[0].code() != KafkaError.TOPIC_ALREADY_EXISTS:
+                raise
 
 
 def run_producer(
@@ -64,8 +93,13 @@ def run_producer(
     from confluent_kafka import Producer
 
     topic = settings.kafka_transactions_topic
+    ensure_topics(settings)
     producer = Producer(
-        {"bootstrap.servers": settings.kafka_bootstrap, "linger.ms": 20, "client.id": "petosvahti-producer"}  # fmt: skip
+        {
+            "bootstrap.servers": settings.kafka_bootstrap,
+            "linger.ms": 20,
+            "client.id": "petosvahti-producer",
+        }
     )
     now = datetime.now(HELSINKI)
     sim = Simulator(
@@ -89,7 +123,9 @@ def run_producer(
     for lt in history:
         send(lt, True)
     producer.flush(60)
-    echo(f"replayed {len(history):,} historical transactions to {topic}; streaming live at {rate}/s")
+    echo(
+        f"replayed {len(history):,} historical transactions to {topic}; streaming live at {rate}/s"
+    )
 
     stop = stop or threading.Event()
     sent = 0
@@ -121,6 +157,7 @@ def consume_and_score(
     """Blocking consume → score → publish loop (run it in a thread)."""
     from confluent_kafka import Consumer, KafkaError, Producer
 
+    ensure_topics(settings)
     consumer = Consumer(
         {
             "bootstrap.servers": settings.kafka_bootstrap,
@@ -138,14 +175,15 @@ def consume_and_score(
             msg = consumer.poll(0.5)
             if msg is None:
                 continue
-            if msg.error():
-                if msg.error().code() != KafkaError._PARTITION_EOF:
-                    status.last_error = str(msg.error())
+            error = msg.error()
+            if error is not None:
+                if error.code() != KafkaError._PARTITION_EOF:
+                    status.last_error = str(error)
                 continue
             status.connected = True
             try:
                 tx, label, replay = decode(msg.value(), msg.headers())
-            except (ValidationError, UnicodeDecodeError) as exc:  # poison message: skip, count
+            except (ValidationError, ValueError) as exc:  # poison message: skip, count
                 status.rejected += 1
                 status.last_error = f"rejected message: {exc.__class__.__name__}"
                 continue

@@ -72,9 +72,7 @@ def load_or_train(settings: Settings) -> FraudModel:
     if settings.model_path.exists():
         return FraudModel.load(settings.model_path)
     if not settings.auto_train:
-        raise FileNotFoundError(
-            f"No model at {settings.model_path}. Run `petosvahti train` first."
-        )
+        raise FileNotFoundError(f"No model at {settings.model_path}. Run `petosvahti train` first.")
     from petosvahti.training import QUICK_CONFIG, train
 
     log.warning(
@@ -85,6 +83,14 @@ def load_or_train(settings: Settings) -> FraudModel:
     model = train(QUICK_CONFIG, log=log.info).model
     model.save(settings.model_path)
     return model
+
+
+def get_ctx(request: Request) -> AppContext:
+    ctx: AppContext = request.app.state.ctx
+    return ctx
+
+
+Ctx = Annotated[AppContext, Depends(get_ctx)]
 
 
 def _make_source(settings: Settings, scorer: Scorer, feed: Feed) -> StreamSource | None:
@@ -100,7 +106,8 @@ def create_app(settings: Settings | None = None, model: FraudModel | None = None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        loaded = model or await run_in_threadpool(load_or_train, settings)
+        loaded = model if model is not None else await run_in_threadpool(load_or_train, settings)
+        loaded.risk_one(tuple(0.0 for _ in FEATURE_NAMES))  # warm numpy paths before traffic
         scorer = Scorer(loaded)
         feed = Feed()
         source = _make_source(settings, scorer, feed)
@@ -120,12 +127,6 @@ def create_app(settings: Settings | None = None, model: FraudModel | None = None
         summary="Real-time transaction fraud scoring for the Finnish payments market",
         lifespan=lifespan,
     )
-
-    def get_ctx(request: Request) -> AppContext:
-        ctx: AppContext = request.app.state.ctx
-        return ctx
-
-    Ctx = Annotated[AppContext, Depends(get_ctx)]
 
     def simulator(ctx: AppContext) -> SimulatorSource:
         if not isinstance(ctx.source, SimulatorSource):

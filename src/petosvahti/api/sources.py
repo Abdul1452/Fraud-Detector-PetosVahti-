@@ -61,7 +61,11 @@ class SimulatorSource:
             self._scorer.observe(lt.transaction)
             self.warmed += 1
         self.ready = True
-        log.info("simulator warmed %d customers with %d transactions", len(self._scorer.store), self.warmed)  # fmt: skip
+        log.info(
+            "simulator warmed %d customers with %d transactions",
+            len(self._scorer.store),
+            self.warmed,
+        )
         while not self._stop.is_set():
             if not self._running.is_set():
                 self._running.wait(0.5)
@@ -124,7 +128,7 @@ class SimulatorSource:
                     ),
                 },
                 "app_scam": {
-                    "label": "\"Safe account\" scam",
+                    "label": '"Safe account" scam',
                     "description": "Customer is phoned by a fake bank officer and sends "
                     "€4 800 by Siirto to a stranger — from their own phone.",
                     "transaction": Transaction(
@@ -182,7 +186,9 @@ class KafkaSource:
     def _run(self) -> None:
         while not self._stop.is_set():
             try:
-                consume_and_score(self._scorer, self._settings, self._on_scored, self._stop, self._status)  # fmt: skip
+                consume_and_score(
+                    self._scorer, self._settings, self._on_scored, self._stop, self._status
+                )
             except Exception as exc:  # broker down, etc. — keep the API alive and retry
                 self._status.connected = False
                 self._status.last_error = f"{exc.__class__.__name__}: {exc}"

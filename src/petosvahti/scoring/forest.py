@@ -47,7 +47,9 @@ class CompiledForest:
         lefts, rights, feats, thresholds, values, roots = [], [], [], [], [], []
         offset = 0
         max_depth = 0
-        for estimator, features in zip(forest.estimators_, forest.estimators_features_, strict=True):  # fmt: skip
+        for estimator, features in zip(
+            forest.estimators_, forest.estimators_features_, strict=True
+        ):
             tree = estimator.tree_
             n = int(tree.node_count)
             left = np.asarray(tree.children_left, dtype=np.intp)

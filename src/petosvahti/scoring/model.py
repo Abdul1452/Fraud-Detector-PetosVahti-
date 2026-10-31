@@ -56,7 +56,7 @@ class FraudModel:
     def risk_one(self, features: FeatureVector) -> float:
         return float(self.risk(np.asarray([features], dtype=np.float64))[0])
 
-    def explain(self, features: FeatureVector, limit: int = 3) -> list[Reason]:
+    def explain(self, features: FeatureVector, limit: int = 4) -> list[Reason]:
         return explain(features, self.reason_rates, limit)
 
     def save(self, path: Path) -> None:

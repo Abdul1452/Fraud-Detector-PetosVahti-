@@ -42,9 +42,11 @@ class Feed:
         self._sources: Counter[str] = Counter()
         self._truth: Counter[str] = Counter()
         self._patterns: dict[str, Counter[str]] = {}
-        self._fraud_eur: Counter[str] = Counter()
+        self._fraud_eur: dict[str, float] = {"attempted": 0.0, "blocked": 0.0, "held": 0.0}
 
-    def add(self, tx: Transaction, result: ScoreResult, source: Source, label: str | None) -> FeedEvent:  # fmt: skip
+    def add(
+        self, tx: Transaction, result: ScoreResult, source: Source, label: str | None
+    ) -> FeedEvent:
         with self._lock:
             self._seq += 1
             event = FeedEvent(
@@ -100,10 +102,17 @@ class Feed:
                 "throughput_per_s": recent / 10.0,
                 "latency_ms": self._quantiles(),
                 "ground_truth": {
-                    **{k: self._truth[k] for k in (
-                        "fraud", "fraud_flagged", "fraud_blocked",
-                        "legit", "legit_flagged", "legit_blocked",
-                    )},  # fmt: skip
+                    **{
+                        k: self._truth[k]
+                        for k in (
+                            "fraud",
+                            "fraud_flagged",
+                            "fraud_blocked",
+                            "legit",
+                            "legit_flagged",
+                            "legit_blocked",
+                        )
+                    },
                     "fraud_eur": round(self._fraud_eur["attempted"], 2),
                     "fraud_eur_blocked": round(self._fraud_eur["blocked"], 2),
                     "fraud_eur_held": round(self._fraud_eur["held"], 2),
@@ -138,7 +147,8 @@ class Feed:
                 f"petosvahti_scoring_latency_ms_count {self._seq}",
                 "# HELP petosvahti_synthetic_fraud_total Labelled (synthetic) fraud by outcome.",
                 "# TYPE petosvahti_synthetic_fraud_total counter",
-                f'petosvahti_synthetic_fraud_total{{outcome="flagged"}} {self._truth["fraud_flagged"]}',  # fmt: skip
+                f'petosvahti_synthetic_fraud_total{{outcome="flagged"}} '
+                f"{self._truth['fraud_flagged']}",
                 f'petosvahti_synthetic_fraud_total{{outcome="missed"}} '
                 f"{self._truth['fraud'] - self._truth['fraud_flagged']}",
                 "# HELP petosvahti_model_info Model currently serving.",

@@ -1,20 +1,29 @@
 [project]
 name = "petosvahti"
-version = "0.1.0"
+version = "1.0.0"
 description = "Real-time transaction fraud detection for the Finnish payments market"
 authors = [{ name = "Abdullahi Olamilekan Abdulwasiu" }]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    "numpy>=1.26",
     "scikit-learn>=1.5",
     "pandas>=2.2",
     "joblib>=1.4",
+    "tzdata>=2024.1",  # Europe/Helsinki on Windows, which ships no IANA zone database
 ]
 
+[project.scripts]
+petosvahti = "petosvahti.cli:main"
+
 [project.optional-dependencies]
+stream = [
+    "confluent-kafka>=2.4",
+]
 dev = [
     "pytest>=8.2",
     "pytest-cov>=5.0",
@@ -38,11 +47,19 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+# Markdown report template: long lines and typographic dashes are content, not code.
+"src/petosvahti/training/report.py" = ["E501", "RUF001"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
 packages = ["petosvahti"]
 mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*", "joblib", "confluent_kafka"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 addopts = "--cov=petosvahti --cov-report=term-missing"

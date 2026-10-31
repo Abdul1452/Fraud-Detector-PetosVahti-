@@ -34,7 +34,9 @@ REASON_RULES: tuple[ReasonRule, ...] = (
         lambda f: f["amount_z"] >= 2.5,
     ),
     ReasonRule("NEW_PAYEE", "First payment to this payee", lambda f: f["new_payee"] > 0),
-    ReasonRule("NEW_DEVICE", "Initiated from an unrecognised device", lambda f: f["new_device"] > 0),  # fmt: skip
+    ReasonRule(
+        "NEW_DEVICE", "Initiated from an unrecognised device", lambda f: f["new_device"] > 0
+    ),
     ReasonRule(
         "NEW_COUNTRY",
         "Initiated from a country not seen before for this customer",
@@ -80,10 +82,8 @@ def base_rates(rows: Iterable[FeatureVector]) -> dict[str, float]:
     return {code: (n + 1) / (total + 2) for code, n in counts.items()}
 
 
-def explain(
-    features: FeatureVector, rates: Mapping[str, float], limit: int = 3
-) -> list[Reason]:
+def explain(features: FeatureVector, rates: Mapping[str, float], limit: int = 4) -> list[Reason]:
     """Active reasons, rarest first."""
     by_code = {r.code: r for r in REASON_RULES}
-    codes = sorted(active_codes(features), key=lambda c: -math.log(rates.get(c, 0.5)), reverse=True)  # fmt: skip
+    codes = sorted(active_codes(features), key=lambda c: -math.log(rates.get(c, 0.5)), reverse=True)
     return [Reason(code=c, description=by_code[c].description) for c in codes[:limit]]

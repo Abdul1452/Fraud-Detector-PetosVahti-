@@ -100,7 +100,8 @@ def _collect(sim: Simulator, store: FeatureStore, until: datetime) -> Window:
     return window
 
 
-def train(cfg: TrainConfig = TrainConfig(), log: Callable[[str], None] = print) -> TrainingResult:
+def train(cfg: TrainConfig | None = None, log: Callable[[str], None] = print) -> TrainingResult:
+    cfg = cfg or TrainConfig()
     sim = Simulator(cfg.n_customers, cfg.seed, cfg.start, cfg.fraud_incidents_per_1000_per_day)
     store = FeatureStore()
     t_warm = cfg.start + timedelta(days=cfg.warmup_days)
@@ -114,8 +115,10 @@ def train(cfg: TrainConfig = TrainConfig(), log: Callable[[str], None] = print) 
         store.update(lt.transaction, learn=True)
     train_w = _collect(sim, store, t_train)
     calib_w = _collect(sim, store, t_calib)
-    log(f"simulated {len(warmup):,} warm-up, {len(train_w.rows):,} train, "
-        f"{len(calib_w.rows):,} calibration transactions")  # fmt: skip
+    log(
+        f"simulated {len(warmup):,} warm-up, {len(train_w.rows):,} train, "
+        f"{len(calib_w.rows):,} calibration transactions"
+    )
 
     forest = IsolationForest(
         n_estimators=cfg.n_estimators,
@@ -155,7 +158,8 @@ def train(cfg: TrainConfig = TrainConfig(), log: Callable[[str], None] = print) 
     evaluation = evaluate(records, train_w, cfg)
     # Policy cut-offs are chosen on this curve, never on the test window.
     calib_risk = model.risk_from_anomaly(calib_anomaly)
-    evaluation["calibration_thresholds"] = threshold_curve(calib_risk, calib_w.y().astype(bool))
+    calib_y: BoolArray = np.asarray(calib_w.y(), dtype=np.bool_)
+    evaluation["calibration_thresholds"] = threshold_curve(calib_risk, calib_y)
     model.summary = {
         "pr_auc": evaluation["headline"]["pr_auc"],
         "recall_flagged": evaluation["headline"]["recall_flagged"],
@@ -190,13 +194,13 @@ def _test_matrix(records: Sequence[ReplayRecord]) -> FloatArray:
 
 
 def evaluate(records: Sequence[ReplayRecord], train_w: Window, cfg: TrainConfig) -> dict[str, Any]:
-    y = np.asarray([r.pattern is not None for r in records])
+    y: BoolArray = np.asarray([r.pattern is not None for r in records], dtype=np.bool_)
     risk = np.asarray([r.result.risk_score for r in records])
     amount = np.asarray([r.transaction.amount_eur for r in records])
-    decision = np.asarray([r.result.decision.value for r in records])
-    flagged = decision != Decision.APPROVE.value
-    blocked = decision == Decision.BLOCK.value
-    reviewed = decision == Decision.REVIEW.value
+    decision = [r.result.decision for r in records]
+    flagged: BoolArray = np.asarray([d is not Decision.APPROVE for d in decision], dtype=np.bool_)
+    blocked: BoolArray = np.asarray([d is Decision.BLOCK for d in decision], dtype=np.bool_)
+    reviewed: BoolArray = np.asarray([d is Decision.REVIEW for d in decision], dtype=np.bool_)
     n = len(records)
 
     top_k = max(1, n // 100)
@@ -204,7 +208,7 @@ def evaluate(records: Sequence[ReplayRecord], train_w: Window, cfg: TrainConfig)
 
     patterns: dict[str, dict[str, float]] = {}
     for pattern in FraudPattern:
-        mask = np.asarray([r.pattern is pattern for r in records])
+        mask: BoolArray = np.asarray([r.pattern is pattern for r in records], dtype=np.bool_)
         if mask.any():
             patterns[pattern.value] = {
                 "transactions": int(mask.sum()),
@@ -271,6 +275,7 @@ def evaluate(records: Sequence[ReplayRecord], train_w: Window, cfg: TrainConfig)
             "p95": float(np.percentile(latency, 95)),
             "p99": float(np.percentile(latency, 99)),
             "max": float(latency.max()),
+            "calls_over_10ms": int((latency > 10.0).sum()),
         },
         "errors": {
             "false_negatives": len(fn),
@@ -282,6 +287,7 @@ def evaluate(records: Sequence[ReplayRecord], train_w: Window, cfg: TrainConfig)
             else 0.0,
             "false_negative_reasons": reason_combos(fn),
             "false_positives": len(fp),
+            "false_positives_blocked": sum(r.result.decision is Decision.BLOCK for r in fp),
             "false_positive_channels": collections.Counter(
                 r.transaction.channel.value for r in fp
             ).most_common(),
